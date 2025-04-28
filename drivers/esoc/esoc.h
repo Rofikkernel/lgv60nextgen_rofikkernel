@@ -26,17 +26,18 @@ extern void *ipc_log;
 // LGE_ModemBSP_S, [DEBUG] Print esoc-mdm log from ipc log to kernel log
 #define esoc_mdm_log(__msg, ...) \
 do { \
-	pr_err("esoc-mdm:"__msg, ##__VA_ARGS__); \
-	if (ipc_log) \
-		ipc_log_string(ipc_log, \
-			"[%s]: "__msg, __func__, ##__VA_ARGS__); \
+    pr_err("esoc-mdm:"__msg, ##__VA_ARGS__); \
+    if (ipc_log) \
+        ipc_log_string(ipc_log, \
+            "[%s]: "__msg, __func__, ##__VA_ARGS__); \
 } while (0)
 // LGE_ModemBSP_E, [DEBUG]
 #else
+#define esoc_mdm_log(__msg, ...) \
 do { \
-	if (ipc_log) \
-		ipc_log_string(ipc_log, \
-			"[%s]: "__msg, __func__, ##__VA_ARGS__); \
+    if (ipc_log) \
+        ipc_log_string(ipc_log, \
+            "[%s]: "__msg, __func__, ##__VA_ARGS__); \
 } while (0)
 #endif /* CONFIG_LGE_ESOC_LOG_CONTROL */
 

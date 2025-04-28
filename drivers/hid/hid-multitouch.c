@@ -43,7 +43,7 @@
 #include <linux/jiffies.h>
 #include <linux/string.h>
 #include <linux/timer.h>
-
+#include <linux/input.h>
 
 MODULE_AUTHOR("Stephane Chatty <chatty@enac.fr>");
 MODULE_AUTHOR("Benjamin Tissoires <benjamin.tissoires@gmail.com>");
@@ -87,8 +87,12 @@ enum latency_mode {
 #define MT_IO_FLAGS_RUNNING		0
 #define MT_IO_FLAGS_ACTIVE_SLOTS	1
 #define MT_IO_FLAGS_PENDING_SLOTS	2
-
+#ifndef TOUCH_D
+#define TOUCH_D(level, fmt, ...) do {} while (0)
+#endif
 #ifdef CONFIG_LGE_HID_STYLUS_PEN
+#define TOUCH_D(level, fmt, ...) \
+    pr_err("esoc-mdm:" fmt, ##__VA_ARGS__)
 static const char * const touch_status_info_str[HID_TOUCH_EVENT_SIZE] = {
 	[1] = "[DS] Touch WAKEUP : finger",
 	[2] = "[DS] Touch WAKEUP : pen",
@@ -118,6 +122,9 @@ static const char * const touch_status_info_str[HID_TOUCH_EVENT_SIZE] = {
 	[26] = "[DS] Touch_Noise_Mode [ENTER]",
 };
 #endif /* CONFIG_LGE_HID_STYLUS_PEN */
+
+
+
 
 static const bool mtrue = true;		/* default for true */
 static const bool mfalse;		/* default for false */

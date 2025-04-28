@@ -92,6 +92,9 @@ struct ion_platform_heap {
 	void *priv;
 };
 
+
+
+
 /**
  * struct ion_platform_data - array of platform heaps passed from board file
  * @nr:    number of structures in the array
@@ -169,6 +172,7 @@ struct ion_device {
 	struct miscdevice dev;
 	struct rb_root buffers;
 	/* buffer_lock used for adding and removing buffers */
+	
 	struct mutex buffer_lock;
 	struct rw_semaphore lock;
 	struct plist_head heaps;

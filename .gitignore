@@ -86,6 +86,8 @@ modules.builtin
 !.cocciconfig
 !.clang-format
 
+#out folder
+out
 #
 # Generated include files
 #

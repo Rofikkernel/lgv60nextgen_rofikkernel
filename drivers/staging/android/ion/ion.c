@@ -1101,9 +1101,9 @@ struct dma_buf *ion_alloc_dmabuf(size_t len, unsigned int heap_id_mask,
 
 	if (IS_ERR(buffer))
 		return ERR_CAST(buffer);
-
+		#ifdef CONFIG_ION_DEBUGGING_LGE_EXTN_DEBUGFS
 	get_task_comm(task_comm, current->group_leader);
-
+#endif
 	exp_info.ops = &dma_buf_ops;
 	exp_info.size = buffer->size;
 	exp_info.flags = O_RDWR;
@@ -1414,11 +1414,15 @@ void ion_device_add_heap(struct ion_device *dev, struct ion_heap *heap)
 	 */
 	plist_node_init(&heap->node, -heap->id);
 	plist_add(&heap->node, &dev->heaps);
-
+	#ifdef CONFIG_ION_DEBUGGING_LGE_EXTN_DEBUGFS
 	debug_file = debugfs_create_file(heap->name, 0664,
 					 dev->heaps_debug_root, heap,
 					 &debug_heap_fops);
-
+					 if (!idev->heaps_debug_root) {
+						pr_err("ion: failed to create debugfs heaps directory.");
+						goto debugfs_done;
+					}
+					#endif /* CONFIG_ION_DEBUGGING_LGE_EXTN_DEBUGFS */	
 #ifdef CONFIG_ION_DEBUGGING_LGE_EXTN_DEBUGFS
 	if (!debug_file) {
 		char buf[256], *path;
@@ -1528,15 +1532,19 @@ static int ion_system_heap_show(struct seq_file *s, void *unused)
 		if (buffer->heap->id != heap->id)
 			continue;
 		total_size += buffer->size;
+		#ifdef CONFIG_ION_DEBUGGING_LGE_EXTN_DEBUGFS
 		seq_printf(s, "%16s %16u %16s %16u %16zu\n",
 								buffer->task_comm, buffer->pid,
 								buffer->thread_comm, buffer->tid,
 								buffer->size);
+								#endif
 	}
 	mutex_unlock(&dev->buffer_lock);
 	seq_puts(s, "------------------------------------------------------------------------------------\n");
 	seq_printf(s, "%16s %16llu\n", "total size", heap->total_allocated);
+	#ifdef CONFIG_ION_DEBUGGING_LGE_EXTN_DEBUGFS
 	seq_printf(s, "%16s %16llu\n", "peak allocated", heap->total_allocated_peak);
+	#endif
 	if (heap->flags & ION_HEAP_FLAG_DEFER_FREE)
 		seq_printf(s, "%16s %16zu\n", "deferred free", heap->free_list_size);
 	seq_puts(s, "------------------------------------------------------------------------------------\n");
