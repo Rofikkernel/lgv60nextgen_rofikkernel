@@ -1418,9 +1418,9 @@ void ion_device_add_heap(struct ion_device *dev, struct ion_heap *heap)
 	debug_file = debugfs_create_file(heap->name, 0664,
 					 dev->heaps_debug_root, heap,
 					 &debug_heap_fops);
-					 if (!idev->heaps_debug_root) {
+					 if (!dev->heaps_debug_root) {
 						pr_err("ion: failed to create debugfs heaps directory.");
-						goto debugfs_done;
+						//goto debugfs_done;
 					}
 					#endif /* CONFIG_ION_DEBUGGING_LGE_EXTN_DEBUGFS */	
 #ifdef CONFIG_ION_DEBUGGING_LGE_EXTN_DEBUGFS
