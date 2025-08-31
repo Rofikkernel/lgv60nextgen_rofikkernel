@@ -1315,12 +1315,6 @@ static void tcp_internal_pacing(struct sock *sk, const struct sk_buff *skb)
 	sock_hold(sk);
 }
 
-static bool tcp_pacing_check(const struct sock *sk)
-{
-	return tcp_needs_internal_pacing(sk) &&
-	       hrtimer_is_queued(&tcp_sk(sk)->pacing_timer);
-}
-
 #ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 void tcp_update_skb_after_send(struct tcp_sock *tp, struct sk_buff *skb)
 #else
@@ -1348,10 +1342,10 @@ static void tcp_update_skb_after_send(struct sock *sk, struct sk_buff *skb,
 	}
 #endif
 {
-	skb->skb_mstamp = tp->tcp_mstamp;
+	skb->skb_mstamp_ns = tp->tcp_mstamp;
 	list_move_tail(&skb->tcp_tsorted_anchor, &tp->tsorted_sent_queue);
 }
-
+}
 /* This routine actually transmits TCP packets queued in by
  * tcp_do_sendmsg().  This is used by both the initial
  * transmission and possible later retransmissions.

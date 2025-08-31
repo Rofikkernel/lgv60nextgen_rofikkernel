@@ -7163,7 +7163,7 @@ u16 tcp_get_syncookie_mss(struct request_sock_ops *rsk_ops,
 	struct tcp_sock *tp = tcp_sk(sk);
 	u16 mss;
 
-	if (READ_ONCE(sock_net(sk)->syncookies) != 2 &&
+	if (READ_ONCE(sock_net(sk)->ipv4.sysctl_tcp_syncookies) != 2 &&
 	    !inet_csk_reqsk_queue_is_full(sk))
 		return 0;
 
@@ -7215,7 +7215,7 @@ int tcp_conn_request(struct request_sock_ops *rsk_ops,
 	 * evidently real one.
 	 */
 	if ((syncookies == 2 ||
-		endif
+#endif
 	     inet_csk_reqsk_queue_is_full(sk)) && !isn) {
 		want_cookie = tcp_syn_flood_action(sk,rsk_ops->slab_name);
 		if (!want_cookie)

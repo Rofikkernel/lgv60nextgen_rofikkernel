@@ -26,6 +26,21 @@
  *      as published by the Free Software Foundation; either version
  *      2 of the License, or (at your option) any later version.
  */
+#ifndef SHA_WORKSPACE_WORDS
+#define SHA_WORKSPACE_WORDS SHA1_WORKSPACE_WORDS
+#endif
+#ifndef SHA_DIGEST_WORDS
+#define SHA_DIGEST_WORDS    SHA1_DIGEST_WORDS
+#endif
+
+#ifndef sha_init
+#define sha_init    sha1_init
+#endif
+#ifndef sha_transform
+#define sha_transform    sha1_transform
+#endif
+
+
 
 #include <net/inet_common.h>
 #include <net/inet6_hashtables.h>
