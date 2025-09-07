@@ -1259,7 +1259,7 @@ static void ion_debug_heap_usage_show(struct ion_heap *heap)
 	static DEFINE_RATELIMIT_STATE(show_heap_usage, HZ * 10, 1);
 
 	/* supports only for some heaps */
-	if (heap->type != ION_HEAP_TYPE_CARVEOUT &&
+	if ((int)heap->type != ION_HEAP_TYPE_CARVEOUT &&
 	    heap->type != ION_HEAP_TYPE_DMA &&
 	    heap->type != ION_HEAP_TYPE_SECURE_DMA &&
 	    heap->type != ION_HEAP_TYPE_HYP_CMA &&

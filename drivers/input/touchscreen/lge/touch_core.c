@@ -1626,7 +1626,7 @@ static void touch_core_shutdown(struct platform_device *pdev)
 		return;
 
 	touch_interrupt_control(ts->dev, INTERRUPT_DISABLE);
-	touch_free_irq(ts->irq, ts->dev);
+	//touch_free_irq(ts->irq, ts->dev);
 
 	if (ts->driver->shutdown)
 		ts->driver->shutdown(ts->dev);
