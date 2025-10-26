@@ -141,8 +141,7 @@ int __init dio_find(int deviceid)
 		else
 			va = ioremap(pa, PAGE_SIZE);
 
-		if (copy_from_kernel_nofault(&i,
-				(unsigned char *)va + DIO_IDOFF, 1)) {
+                if (probe_kernel_read(&i, (unsigned char *)va + DIO_IDOFF, 1)) {
 			if (scode >= DIOII_SCBASE)
 				iounmap(va);
                         continue;             /* no board present at that select code */
@@ -215,8 +214,7 @@ static int __init dio_init(void)
 		else
 			va = ioremap(pa, PAGE_SIZE);
 
-		if (copy_from_kernel_nofault(&i,
-				(unsigned char *)va + DIO_IDOFF, 1)) {
+                if (probe_kernel_read(&i, (unsigned char *)va + DIO_IDOFF, 1)) {
 			if (scode >= DIOII_SCBASE)
 				iounmap(va);
                         continue;              /* no board present at that select code */

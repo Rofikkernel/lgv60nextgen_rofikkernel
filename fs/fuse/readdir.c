@@ -20,11 +20,6 @@ static bool fuse_use_readdirplus(struct inode *dir, struct dir_context *ctx)
 
 	if (!fc->do_readdirplus)
 		return false;
-<<<<<<< HEAD
-=======
-	if (fi->nodeid == 0)
-		return false;
->>>>>>> qcom/ok2
 	if (!fc->readdirplus_auto)
 		return true;
 	if (test_and_clear_bit(FUSE_I_ADVISE_RDPLUS, &fi->state))
@@ -82,15 +77,8 @@ static void fuse_add_dirent_to_cache(struct file *file,
 		goto unlock;
 
 	addr = kmap_atomic(page);
-<<<<<<< HEAD
 	if (!offset)
 		clear_page(addr);
-=======
-	if (!offset) {
-		clear_page(addr);
-		SetPageUptodate(page);
-	}
->>>>>>> qcom/ok2
 	memcpy(addr + offset, dirent, reclen);
 	kunmap_atomic(addr);
 	fi->rdc.size = (index << PAGE_SHIFT) + offset + reclen;
@@ -133,11 +121,7 @@ static bool fuse_emit(struct file *file, struct dir_context *ctx,
 			dirent->type);
 }
 
-<<<<<<< HEAD
 int fuse_parse_dirfile(char *buf, size_t nbytes, struct file *file,
-=======
-static int parse_dirfile(char *buf, size_t nbytes, struct file *file,
->>>>>>> qcom/ok2
 			 struct dir_context *ctx)
 {
 	while (nbytes >= FUSE_NAME_OFFSET) {
@@ -384,11 +368,7 @@ static int fuse_readdir_uncached(struct file *file, struct dir_context *ctx)
 			res = parse_dirplusfile(page_address(page), res,
 						file, ctx, attr_version);
 		} else {
-<<<<<<< HEAD
 			res = fuse_parse_dirfile(page_address(page), res, file,
-=======
-			res = parse_dirfile(page_address(page), res, file,
->>>>>>> qcom/ok2
 					    ctx);
 		}
 	}
@@ -544,15 +524,6 @@ retry_locked:
 
 	page = find_get_page_flags(file->f_mapping, index,
 				   FGP_ACCESSED | FGP_LOCK);
-<<<<<<< HEAD
-=======
-	/* Page gone missing, then re-added to cache, but not initialized? */
-	if (page && !PageUptodate(page)) {
-		unlock_page(page);
-		put_page(page);
-		page = NULL;
-	}
->>>>>>> qcom/ok2
 	spin_lock(&fi->rdc.lock);
 	if (!page) {
 		/*
@@ -610,29 +581,14 @@ int fuse_readdir(struct file *file, struct dir_context *ctx)
 
 #ifdef CONFIG_FUSE_BPF
 	struct fuse_err_ret fer;
-<<<<<<< HEAD
 	bool force_again, allow_force;
-=======
-	bool allow_force;
-	bool force_again = false;
-	bool is_continued = false;
-
->>>>>>> qcom/ok2
 again:
 	fer = fuse_bpf_backing(inode, struct fuse_read_io,
 			       fuse_readdir_initialize, fuse_readdir_backing,
 			       fuse_readdir_finalize,
-<<<<<<< HEAD
 			       file, ctx, &force_again, &allow_force);
 	if (force_again && !IS_ERR(fer.result))
 		goto again;
-=======
-			       file, ctx, &force_again, &allow_force, is_continued);
-	if (force_again && !IS_ERR(fer.result)) {
-		is_continued = true;
-		goto again;
-	}
->>>>>>> qcom/ok2
 
 	if (fer.ret)
 		return PTR_ERR(fer.result);

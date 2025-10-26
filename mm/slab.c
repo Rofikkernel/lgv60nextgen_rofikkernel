@@ -4275,12 +4275,12 @@ static void handle_slab(unsigned long *n, struct kmem_cache *c,
 			continue;
 
 		/*
-		 * copy_from_kernel_nofault() is used for DEBUG_PAGEALLOC. page table
+		 * probe_kernel_read() is used for DEBUG_PAGEALLOC. page table
 		 * mapping is established when actual object allocation and
 		 * we could mistakenly access the unmapped object in the cpu
 		 * cache.
 		 */
-		if (copy_from_kernel_nofault(&v, dbg_userword(c, p), sizeof(v)))
+		if (probe_kernel_read(&v, dbg_userword(c, p), sizeof(v)))
 			continue;
 
 		if (!add_caller(n, v))

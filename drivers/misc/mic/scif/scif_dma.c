@@ -201,18 +201,23 @@ static void scif_mmu_notifier_release(struct mmu_notifier *mn,
 }
 
 static int scif_mmu_notifier_invalidate_range_start(struct mmu_notifier *mn,
-					const struct mmu_notifier_range *range)
+						     struct mm_struct *mm,
+						     unsigned long start,
+						     unsigned long end,
+						     bool blockable)
 {
 	struct scif_mmu_notif	*mmn;
 
 	mmn = container_of(mn, struct scif_mmu_notif, ep_mmu_notifier);
-	scif_rma_destroy_tcw(mmn, range->start, range->end - range->start);
+	scif_rma_destroy_tcw(mmn, start, end - start);
 
 	return 0;
 }
 
 static void scif_mmu_notifier_invalidate_range_end(struct mmu_notifier *mn,
-			const struct mmu_notifier_range *range)
+						   struct mm_struct *mm,
+						   unsigned long start,
+						   unsigned long end)
 {
 	/*
 	 * Nothing to do here, everything needed was done in

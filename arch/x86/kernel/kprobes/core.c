@@ -255,7 +255,7 @@ __recover_probed_insn(kprobe_opcode_t *buf, unsigned long addr)
 	 * Fortunately, we know that the original code is the ideal 5-byte
 	 * long NOP.
 	 */
-	if (copy_from_kernel_nofault(buf, (void *)addr,
+	if (probe_kernel_read(buf, (void *)addr,
 		MAX_INSN_SIZE * sizeof(kprobe_opcode_t)))
 		return 0UL;
 
@@ -358,8 +358,7 @@ int __copy_instruction(u8 *dest, u8 *src, u8 *real, struct insn *insn)
 		return 0;
 
 	/* This can access kernel text if given address is not recovered */
-	if (copy_from_kernel_nofault(dest, (void *)recovered_insn,
-			MAX_INSN_SIZE))
+	if (probe_kernel_read(dest, (void *)recovered_insn, MAX_INSN_SIZE))
 		return 0;
 
 	kernel_insn_init(insn, dest, MAX_INSN_SIZE);

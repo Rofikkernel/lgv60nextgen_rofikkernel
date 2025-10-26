@@ -71,10 +71,14 @@ void * memcpy(void * dst,const void *src, size_t count)
 EXPORT_SYMBOL(raw_copy_in_user);
 EXPORT_SYMBOL(memcpy);
 
-bool copy_from_kernel_nofault_allowed(const void *unsafe_src, size_t size)
+long probe_kernel_read(void *dst, const void *src, size_t size)
 {
-	if ((unsigned long)unsafe_src < PAGE_SIZE)
-		return false;
+	unsigned long addr = (unsigned long)src;
+
+	if (addr < PAGE_SIZE)
+		return -EFAULT;
+
 	/* check for I/O space F_EXTEND(0xfff00000) access as well? */
-	return true;
+
+	return __probe_kernel_read(dst, src, size);
 }

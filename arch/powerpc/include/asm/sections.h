@@ -75,7 +75,7 @@ static inline void *dereference_function_descriptor(void *ptr)
 	struct ppc64_opd_entry *desc = ptr;
 	void *p;
 
-	if (!get_kernel_nofault(p, &desc->funcaddr))
+	if (!probe_kernel_address(&desc->funcaddr, p))
 		ptr = p;
 	return ptr;
 }

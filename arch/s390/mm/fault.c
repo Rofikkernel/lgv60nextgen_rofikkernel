@@ -143,7 +143,7 @@ static int bad_address(void *p)
 {
 	unsigned long dummy;
 
-	return get_kernel_nofault(dummy, (unsigned long *)p);
+	return probe_kernel_address((unsigned long *)p, dummy);
 }
 
 static void dump_pagetable(unsigned long asce, unsigned long address)

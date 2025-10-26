@@ -43,6 +43,7 @@ static const struct mmu_notifier_ops hmm_mmu_notifier_ops;
  *
  * @mm: mm struct this HMM struct is bound to
  * @lock: lock protecting ranges list
+ * @sequence: we track updates to the CPU page table with a sequence number
  * @ranges: list of range being snapshotted
  * @mirrors: list of mirrors for this mm
  * @mmu_notifier: mmu notifier to track updates to CPU page table
@@ -51,6 +52,7 @@ static const struct mmu_notifier_ops hmm_mmu_notifier_ops;
 struct hmm {
 	struct mm_struct	*mm;
 	spinlock_t		lock;
+	atomic_t		sequence;
 	struct list_head	ranges;
 	struct list_head	mirrors;
 	struct mmu_notifier	mmu_notifier;
@@ -83,6 +85,7 @@ static struct hmm *hmm_register(struct mm_struct *mm)
 		return NULL;
 	INIT_LIST_HEAD(&hmm->mirrors);
 	init_rwsem(&hmm->mirrors_sem);
+	atomic_set(&hmm->sequence, 0);
 	hmm->mmu_notifier.ops = NULL;
 	INIT_LIST_HEAD(&hmm->ranges);
 	spin_lock_init(&hmm->lock);
@@ -123,8 +126,10 @@ void hmm_mm_destroy(struct mm_struct *mm)
 	kfree(mm->hmm);
 }
 
-static int hmm_invalidate_range(struct hmm *hmm, bool device,
-				const struct hmm_update *update)
+static void hmm_invalidate_range(struct hmm *hmm,
+				 enum hmm_update_type action,
+				 unsigned long start,
+				 unsigned long end)
 {
 	struct hmm_mirror *mirror;
 	struct hmm_range *range;
@@ -133,33 +138,22 @@ static int hmm_invalidate_range(struct hmm *hmm, bool device,
 	list_for_each_entry(range, &hmm->ranges, list) {
 		unsigned long addr, idx, npages;
 
-		if (update->end < range->start || update->start >= range->end)
+		if (end < range->start || start >= range->end)
 			continue;
 
 		range->valid = false;
-		addr = max(update->start, range->start);
+		addr = max(start, range->start);
 		idx = (addr - range->start) >> PAGE_SHIFT;
-		npages = (min(range->end, update->end) - addr) >> PAGE_SHIFT;
+		npages = (min(range->end, end) - addr) >> PAGE_SHIFT;
 		memset(&range->pfns[idx], 0, sizeof(*range->pfns) * npages);
 	}
 	spin_unlock(&hmm->lock);
 
-	if (!device)
-		return 0;
-
 	down_read(&hmm->mirrors_sem);
-	list_for_each_entry(mirror, &hmm->mirrors, list) {
-		int ret;
-
-		ret = mirror->ops->sync_cpu_device_pagetables(mirror, update);
-		if (!update->blockable && ret == -EAGAIN) {
-			up_read(&hmm->mirrors_sem);
-			return -EAGAIN;
-		}
-	}
+	list_for_each_entry(mirror, &hmm->mirrors, list)
+		mirror->ops->sync_cpu_device_pagetables(mirror, action,
+							start, end);
 	up_read(&hmm->mirrors_sem);
-
-	return 0;
 }
 
 static void hmm_release(struct mmu_notifier *mn, struct mm_struct *mm)
@@ -189,33 +183,30 @@ static void hmm_release(struct mmu_notifier *mn, struct mm_struct *mm)
 }
 
 static int hmm_invalidate_range_start(struct mmu_notifier *mn,
-			const struct mmu_notifier_range *range)
+				       struct mm_struct *mm,
+				       unsigned long start,
+				       unsigned long end,
+				       bool blockable)
 {
-	struct hmm_update update;
-	struct hmm *hmm = range->mm->hmm;
+	struct hmm *hmm = mm->hmm;
 
 	VM_BUG_ON(!hmm);
 
-	update.start = range->start;
-	update.end = range->end;
-	update.event = HMM_UPDATE_INVALIDATE;
-	update.blockable = range->blockable;
-	return hmm_invalidate_range(hmm, true, &update);
+	atomic_inc(&hmm->sequence);
+
+	return 0;
 }
 
 static void hmm_invalidate_range_end(struct mmu_notifier *mn,
-			const struct mmu_notifier_range *range)
+				     struct mm_struct *mm,
+				     unsigned long start,
+				     unsigned long end)
 {
-	struct hmm_update update;
-	struct hmm *hmm = range->mm->hmm;
+	struct hmm *hmm = mm->hmm;
 
 	VM_BUG_ON(!hmm);
 
-	update.start = range->start;
-	update.end = range->end;
-	update.event = HMM_UPDATE_INVALIDATE;
-	update.blockable = true;
-	hmm_invalidate_range(hmm, false, &update);
+	hmm_invalidate_range(mm->hmm, HMM_UPDATE_INVALIDATE, start, end);
 }
 
 static const struct mmu_notifier_ops hmm_mmu_notifier_ops = {

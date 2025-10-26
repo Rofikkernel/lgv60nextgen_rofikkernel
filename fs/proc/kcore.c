@@ -511,8 +511,7 @@ read_kcore(struct file *file, char __user *buffer, size_t buflen, loff_t *fpos)
 				 * Using bounce buffer to bypass the
 				 * hardened user copy kernel text checks.
 				 */
-				if (copy_from_kernel_nofault(buf, (void *)start,
-						tsz)) {
+				if (probe_kernel_read(buf, (void *) start, tsz)) {
 					if (clear_user(buffer, tsz)) {
 						ret = -EFAULT;
 						goto out;

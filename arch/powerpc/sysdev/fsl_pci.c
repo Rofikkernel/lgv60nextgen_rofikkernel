@@ -1081,7 +1081,7 @@ int fsl_pci_mcheck_exception(struct pt_regs *regs)
 			ret = get_user(inst, (__u32 __user *)regs->nip);
 			pagefault_enable();
 		} else {
-			ret = get_kernel_nofault(inst, (void *)regs->nip);
+			ret = probe_kernel_address((void *)regs->nip, inst);
 		}
 
 		if (!ret && mcheck_handle_load(regs, inst)) {

@@ -312,7 +312,7 @@ void *dereference_function_descriptor(void *ptr)
 	Elf64_Fdesc *desc = ptr;
 	void *p;
 
-	if (!get_kernel_nofault(p, &desc->addr))
+	if (!probe_kernel_address(&desc->addr, p))
 		ptr = p;
 	return ptr;
 }

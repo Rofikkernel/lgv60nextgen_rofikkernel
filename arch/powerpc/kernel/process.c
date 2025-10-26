@@ -1267,7 +1267,7 @@ static void show_instructions(struct pt_regs *regs)
 #endif
 
 		if (!__kernel_text_address(pc) ||
-		    get_kernel_nofault(instr, (unsigned int __user *)pc)) {
+		     probe_kernel_address((unsigned int __user *)pc, instr)) {
 			pr_cont("XXXXXXXX ");
 		} else {
 			if (regs->nip == pc)
@@ -1309,7 +1309,7 @@ void show_user_instructions(struct pt_regs *regs)
 			pr_info("%s[%d]: code: ", current->comm, current->pid);
 		}
 
-		if (get_kernel_nofault(instr, (unsigned int __user *)pc)) {
+		if (probe_kernel_address((unsigned int __user *)pc, instr)) {
 			pr_cont("XXXXXXXX ");
 		} else {
 			if (regs->nip == pc)

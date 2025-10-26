@@ -24,8 +24,7 @@ static int ftrace_check_current_call(unsigned long hook_pos,
 	 * Read the text we want to modify;
 	 * return must be -EFAULT on read error
 	 */
-	if (copy_from_kernel_nofault(replaced, (void *)hook_pos,
-			MCOUNT_INSN_SIZE))
+	if (probe_kernel_read(replaced, (void *)hook_pos, MCOUNT_INSN_SIZE))
 		return -EFAULT;
 
 	/*
@@ -52,7 +51,7 @@ static int __ftrace_modify_call(unsigned long hook_pos, unsigned long target,
 	make_call(hook_pos, target, call);
 
 	/* replace the auipc-jalr pair at once */
-	ret = copy_to_kernel_nofault((void *)hook_pos, enable ? call : nops,
+	ret = probe_kernel_write((void *)hook_pos, enable ? call : nops,
 				 MCOUNT_INSN_SIZE);
 	/* return must be -EPERM on write error */
 	if (ret)

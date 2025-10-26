@@ -144,14 +144,13 @@ static int __ftrace_modify_code(unsigned long pc, unsigned long *old_insn,
 	unsigned long orig_insn[3];
 
 	if (validate) {
-		if (copy_from_kernel_nofault(orig_insn, (void *)pc,
-				MCOUNT_INSN_SIZE))
+		if (probe_kernel_read(orig_insn, (void *)pc, MCOUNT_INSN_SIZE))
 			return -EFAULT;
 		if (memcmp(orig_insn, old_insn, MCOUNT_INSN_SIZE))
 			return -EINVAL;
 	}
 
-	if (copy_to_kernel_nofault((void *)pc, new_insn, MCOUNT_INSN_SIZE))
+	if (probe_kernel_write((void *)pc, new_insn, MCOUNT_INSN_SIZE))
 		return -EPERM;
 
 	return 0;

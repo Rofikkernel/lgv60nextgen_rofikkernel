@@ -448,7 +448,7 @@ int kgdb_arch_set_breakpoint(struct kgdb_bkpt *bpt)
 	unsigned int instr;
 	unsigned int *addr = (unsigned int *)bpt->bpt_addr;
 
-	err = get_kernel_nofault(instr, addr);
+	err = probe_kernel_address(addr, instr);
 	if (err)
 		return err;
 

@@ -171,7 +171,7 @@ void *kthread_probe_data(struct task_struct *task)
 	struct kthread *kthread = to_kthread(task);
 	void *data = NULL;
 
-	copy_from_kernel_nofault(&data, &kthread->data, sizeof(data));
+	probe_kernel_read(&data, &kthread->data, sizeof(data));
 	return data;
 }
 

@@ -301,7 +301,7 @@ retry:
 	if (!task)
 		return NULL;
 
-	get_kernel_nofault(sighand, &task->sighand);
+	probe_kernel_address(&task->sighand, sighand);
 
 	/*
 	 * Pairs with atomic_dec_and_test() in put_task_struct(). If this task
