@@ -173,6 +173,49 @@ static void fuse_lookup_init(struct fuse_conn *fc, struct fuse_args *args,
 	args->out_args[1].value = bpf_outarg;
 }
 
+#ifdef CONFIG_FUSE_BPF
+static bool backing_data_changed(struct fuse_inode *fi, struct dentry *entry,
+				 struct fuse_entry_bpf *bpf_arg)
+{
+	struct path new_backing_path;
+	struct inode *new_backing_inode;
+	struct bpf_prog *bpf = NULL;
+	int err;
+	bool ret = true;
+
+	if (!entry || !fi->backing_inode) {
+		ret = false;
+		goto put_backing_file;
+	}
+
+	get_fuse_backing_path(entry, &new_backing_path);
+	new_backing_inode = fi->backing_inode;
+	ihold(new_backing_inode);
+
+	err = fuse_handle_backing(bpf_arg, &new_backing_inode, &new_backing_path);
+
+	if (err)
+		goto put_inode;
+
+	err = fuse_handle_bpf_prog(bpf_arg, entry->d_parent->d_inode, &bpf);
+	if (err)
+		goto put_bpf;
+
+	ret = (bpf != fi->bpf || fi->backing_inode != new_backing_inode ||
+			!path_equal(&get_fuse_dentry(entry)->backing_path, &new_backing_path));
+put_bpf:
+	if (bpf)
+		bpf_prog_put(bpf);
+put_inode:
+	iput(new_backing_inode);
+	path_put(&new_backing_path);
+put_backing_file:
+	if (bpf_arg->backing_file)
+		fput(bpf_arg->backing_file);
+	return ret;
+}
+#endif
+
 /*
  * Check whether the dentry is still valid
  *
@@ -193,10 +236,22 @@ static int fuse_dentry_revalidate(struct dentry *entry, unsigned int flags)
 	inode = d_inode_rcu(entry);
 	if (inode && fuse_is_bad(inode))
 		goto invalid;
-	else if (time_before64(fuse_dentry_time(entry), get_jiffies_64()) ||
-		 (flags & LOOKUP_REVAL)) {
+#ifdef CONFIG_FUSE_BPF
+	/* TODO: Do we need bpf support for revalidate?
+	 * If the lower filesystem says the entry is invalid, FUSE probably shouldn't
+	 * try to fix that without going through the normal lookup path...
+	 */
+	if (get_fuse_dentry(entry)->backing_path.dentry) {
+		ret = fuse_revalidate_backing(entry, flags);
+		if (ret <= 0) {
+			goto out;
+		}
+	}
+#endif
+	if (time_before64(fuse_dentry_time(entry), get_jiffies_64()) ||
+		 (flags & (LOOKUP_EXCL | LOOKUP_REVAL | LOOKUP_RENAME_TARGET))) {
 		struct fuse_entry_out outarg;
-		struct fuse_entry_bpf_out bpf_outarg;
+		struct fuse_entry_bpf bpf_arg;
 		FUSE_ARGS(args);
 		struct fuse_forget_link *forget;
 		u64 attr_version;
@@ -208,41 +263,44 @@ static int fuse_dentry_revalidate(struct dentry *entry, unsigned int flags)
 		ret = -ECHILD;
 		if (flags & LOOKUP_RCU)
 			goto out;
-#ifdef CONFIG_FUSE_BPF
-		{
-			struct fuse_err_ret fer;
-
-			fer = fuse_bpf_backing(entry->d_parent->d_inode,
-					struct fuse_lookup_io,
-					fuse_lookup_initialize,
-					fuse_revalidate_backing,
-					fuse_revalidate_finalize,
-					d_inode(entry->d_parent), entry, flags);
-			if (fer.ret)
-				return PTR_ERR(fer.result);
-		}
-#endif
 		fm = get_fuse_mount(inode);
-
-		forget = fuse_alloc_forget();
-		ret = -ENOMEM;
-		if (!forget)
-			goto out;
-
-		attr_version = fuse_get_attr_version(fm->fc);
 
 		parent = dget_parent(entry);
 
+#ifdef CONFIG_FUSE_BPF
+		/* TODO: Once we're handling timeouts for backing inodes, do a
+		 * bpf based lookup_revalidate here.
+		 */
+		if (get_fuse_inode(parent->d_inode)->backing_inode) {
+			dput(parent);
+			ret = 1;
+			goto out;
+		}
+#endif
+		forget = fuse_alloc_forget();
+		ret = -ENOMEM;
+		if (!forget) {
+			dput(parent);
+			goto out;
+		}
+
+		attr_version = fuse_get_attr_version(fm->fc);
+
 		fuse_lookup_init(fm->fc, &args, get_node_id(d_inode(parent)),
-				 &entry->d_name, &outarg, &bpf_outarg);
+				 &entry->d_name, &outarg, &bpf_arg.out);
 		ret = fuse_simple_request(fm, &args);
 		dput(parent);
+
 		/* Zero nodeid is same as -ENOENT */
 		if (!ret && !outarg.nodeid)
 			ret = -ENOENT;
-		if (!ret) {
+		if (!ret || ret == sizeof(bpf_arg.out)) {
 			fi = get_fuse_inode(inode);
 			if (outarg.nodeid != get_node_id(inode) ||
+#ifdef CONFIG_FUSE_BPF
+			    (ret == sizeof(bpf_arg.out) &&
+					    backing_data_changed(fi, entry, &bpf_arg)) ||
+#endif
 			    (bool) IS_AUTOMOUNT(inode) != (bool) (outarg.attr.flags & FUSE_ATTR_SUBMOUNT)) {
 				fuse_queue_forget(fm->fc, forget,
 						  outarg.nodeid, 1);
@@ -296,8 +354,13 @@ static void fuse_dentry_release(struct dentry *dentry)
 {
 	struct fuse_dentry *fd = dentry->d_fsdata;
 
+#ifdef CONFIG_FUSE_BPF
 	if (fd && fd->backing_path.dentry)
 		path_put(&fd->backing_path);
+
+	if (fd && fd->bpf)
+		bpf_prog_put(fd->bpf);
+#endif
 
 	kfree_rcu(fd, rcu);
 }
@@ -318,6 +381,19 @@ static void fuse_dentry_canonical_path(const struct path *path,
 	FUSE_ARGS(args);
 	char *path_name;
 	int err;
+
+
+#ifdef CONFIG_FUSE_BPF
+	struct fuse_err_ret fer;
+
+	fer = fuse_bpf_backing(inode, struct fuse_dummy_io,
+						   fuse_canonical_path_initialize,
+						   fuse_canonical_path_backing,
+						   fuse_canonical_path_finalize, path,
+						   canonical_path);
+	if (fer.ret)
+		return;
+#endif
 
 	path_name = (char *)get_zeroed_page(GFP_KERNEL);
 	if (!path_name)
@@ -468,12 +544,12 @@ bool fuse_invalid_attr(struct fuse_attr *attr)
 
 int fuse_lookup_name(struct super_block *sb, u64 nodeid, const struct qstr *name,
 		     struct fuse_entry_out *outarg,
-		     struct fuse_entry_bpf_out *bpf_outarg,
 		     struct dentry *entry,
 		     struct inode **inode)
 {
 	struct fuse_mount *fm = get_fuse_mount_super(sb);
 	FUSE_ARGS(args);
+	struct fuse_entry_bpf bpf_arg = {0};
 	struct fuse_forget_link *forget;
 	u64 attr_version;
 	int err;
@@ -483,7 +559,6 @@ int fuse_lookup_name(struct super_block *sb, u64 nodeid, const struct qstr *name
 	if (name->len > FUSE_NAME_MAX)
 		goto out;
 
-
 	forget = fuse_alloc_forget();
 	err = -ENOMEM;
 	if (!forget)
@@ -491,59 +566,45 @@ int fuse_lookup_name(struct super_block *sb, u64 nodeid, const struct qstr *name
 
 	attr_version = fuse_get_attr_version(fm->fc);
 
-	fuse_lookup_init(fm->fc, &args, nodeid, name, outarg, bpf_outarg);
+	fuse_lookup_init(fm->fc, &args, nodeid, name, outarg, &bpf_arg.out);
 	err = fuse_simple_request(fm, &args);
 
 #ifdef CONFIG_FUSE_BPF
-	if (err == sizeof(*bpf_outarg)) {
+	if (err == sizeof(bpf_arg.out)) {
 		/* TODO Make sure this handles invalid handles */
-		/* TODO Do we need the same code in revalidate */
 		struct file *backing_file;
 		struct inode *backing_inode;
 
 		err = -ENOENT;
 		if (!entry)
-			goto out_queue_forget;
+			goto out_put_forget;
 
 		err = -EINVAL;
-		if (bpf_outarg->backing_action != FUSE_ACTION_REPLACE)
-			goto out_queue_forget;
-
-		backing_file = fuse_fget(fm->fc, bpf_outarg->backing_fd);
+		backing_file = bpf_arg.backing_file;
 		if (!backing_file)
-			goto out_queue_forget;
+			goto out_put_forget;
 
-		/* TODO userspace doesn't really know when the right time to
-		 * close the passed fd is. This because after replying to the
-		 * driver request, so assume that after a lookup with bpf_args,
-		 * the daemon passes the fd ownership to the kernel, which also
-		 * takes care of closing it at the right time.
-		 */
-		__close_fd(fm->fc->task->files, bpf_outarg->backing_fd);
-
-		backing_inode = backing_file->f_inode;
-		*inode = fuse_iget_backing(sb, backing_inode);
-		if (!*inode)
-			goto bpf_outarg_out;
-
-		if (bpf_outarg->bpf_action == FUSE_ACTION_REPLACE) {
-			struct bpf_prog *bpf_prog = fuse_get_bpf_prog(fm->fc,
-							bpf_outarg->bpf_fd);
-
-			if (IS_ERR(bpf_prog)) {
-				iput(*inode);
-				*inode = NULL;
-				err = PTR_ERR(bpf_prog);
-				goto bpf_outarg_out;
-			}
-			get_fuse_inode(*inode)->bpf = bpf_prog;
+		if (IS_ERR(backing_file)) {
+			err = PTR_ERR(backing_file);
+			goto out_put_forget;
 		}
 
-		get_fuse_dentry(entry)->backing_path = backing_file->f_path;
-		path_get(&get_fuse_dentry(entry)->backing_path);
+		backing_inode = backing_file->f_inode;
+		*inode = fuse_iget_backing(sb, outarg->nodeid, backing_inode);
+		if (!*inode)
+			goto out_put_forget;
 
-bpf_outarg_out:
-		fput(backing_file);
+		err = fuse_handle_backing(&bpf_arg,
+				&get_fuse_inode(*inode)->backing_inode,
+				&get_fuse_dentry(entry)->backing_path);
+		if (!err)
+			err = fuse_handle_bpf_prog(&bpf_arg, NULL,
+					   &get_fuse_inode(*inode)->bpf);
+		if (err) {
+			iput(*inode);
+			*inode = NULL;
+			goto out_put_forget;
+		}
 	} else
 #endif
 	{
@@ -556,6 +617,10 @@ bpf_outarg_out:
 			goto out_put_forget;
 		if (fuse_invalid_attr(&outarg->attr))
 			goto out_put_forget;
+		if (outarg->nodeid == FUSE_ROOT_ID && outarg->generation != 0) {
+			pr_warn_once("root generation should be zero\n");
+			outarg->generation = 0;
+		}
 
 		*inode = fuse_iget(sb, outarg->nodeid, outarg->generation,
 				   &outarg->attr, entry_attr_timeout(outarg),
@@ -563,9 +628,6 @@ bpf_outarg_out:
 	}
 
 	err = -ENOMEM;
-#ifdef CONFIG_FUSE_BPF
-out_queue_forget:
-#endif
 	if (!*inode && outarg->nodeid) {
 		fuse_queue_forget(fm->fc, forget, outarg->nodeid, 1);
 		goto out;
@@ -575,6 +637,8 @@ out_queue_forget:
  out_put_forget:
 	kfree(forget);
  out:
+	if (bpf_arg.backing_file)
+		fput(bpf_arg.backing_file);
 	return err;
 }
 
@@ -605,7 +669,7 @@ static struct dentry *fuse_lookup(struct inode *dir, struct dentry *entry,
 
 	locked = fuse_lock_inode(dir);
 	err = fuse_lookup_name(dir->i_sb, get_node_id(dir), &entry->d_name,
-			       &outarg, &bpf_outarg, entry, &inode);
+			       &outarg, entry, &inode);
 	fuse_unlock_inode(dir, locked);
 	if (err == -ENOENT) {
 		outarg_valid = false;
@@ -660,6 +724,7 @@ static int fuse_create_open(struct inode *dir, struct dentry *entry,
 	struct fuse_entry_out outentry;
 	struct fuse_inode *fi;
 	struct fuse_file *ff;
+	bool trunc = flags & O_TRUNC;
 
 	/* Userspace expects S_IFREG in create mode */
 	BUG_ON((mode & S_IFMT) != S_IFREG);
@@ -742,6 +807,10 @@ static int fuse_create_open(struct inode *dir, struct dentry *entry,
 	} else {
 		file->private_data = ff;
 		fuse_finish_open(inode, file);
+		if (fm->fc->atomic_o_trunc && trunc)
+			truncate_pagecache(inode, 0);
+		else if (!(ff->open_flags & FOPEN_KEEP_CACHE))
+			invalidate_inode_pages2(inode->i_mapping);
 	}
 	return err;
 
@@ -1516,6 +1585,10 @@ static int fuse_permission(struct inode *inode, int mask)
 	struct fuse_conn *fc = get_fuse_conn(inode);
 	bool refreshed = false;
 	int err = 0;
+	struct fuse_inode *fi = get_fuse_inode(inode);
+#ifdef CONFIG_FUSE_BPF
+	struct fuse_err_ret fer;
+#endif
 
 	if (fuse_is_bad(inode))
 		return -EIO;
@@ -1523,12 +1596,19 @@ static int fuse_permission(struct inode *inode, int mask)
 	if (!fuse_allow_current_process(fc))
 		return -EACCES;
 
+#ifdef CONFIG_FUSE_BPF
+	fer = fuse_bpf_backing(inode, struct fuse_access_in,
+			       fuse_access_initialize, fuse_access_backing,
+			       fuse_access_finalize, inode, mask);
+	if (fer.ret)
+		return PTR_ERR(fer.result);
+#endif
+
 	/*
 	 * If attributes are needed, refresh them before proceeding
 	 */
 	if (fc->default_permissions ||
 	    ((mask & MAY_EXEC) && S_ISREG(inode->i_mode))) {
-		struct fuse_inode *fi = get_fuse_inode(inode);
 		u32 perm_mask = STATX_MODE | STATX_UID | STATX_GID;
 
 		if (perm_mask & READ_ONCE(fi->inval_mask) ||
@@ -1634,7 +1714,7 @@ static const char *fuse_get_link(struct dentry *dentry, struct inode *inode,
 #endif
 
 	if (fc->cache_symlinks)
-		return page_get_link(dentry, inode, callback);
+		return page_get_link_raw(dentry, inode, callback);
 
 	err = -ECHILD;
 	if (!dentry)
@@ -1691,7 +1771,7 @@ static int fuse_dir_fsync(struct file *file, loff_t start, loff_t end,
 	if (is_bad_inode(inode))
 		return -EIO;
 
-#ifdef CONFIG_FUSE_BFP
+#ifdef CONFIG_FUSE_BPF
 	{
 		struct fuse_err_ret fer;
 
