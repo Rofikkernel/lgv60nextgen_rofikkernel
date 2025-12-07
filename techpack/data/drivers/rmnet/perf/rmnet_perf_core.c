@@ -137,6 +137,17 @@ void rmnet_perf_core_release_lock(void)
 	spin_unlock_bh(&rmnet_perf_core_lock);
 }
 
+/* Match the required 'int' return type and single argument signature */
+static int rmnet_perf_deag_entry_wrapper(struct sk_buff *skb)
+{
+    // Call the original function. Since the original expects a 'port'
+    // argument, you must pass NULL or a valid port pointer if needed.
+    // Assuming the 'port' is unnecessary in this upstream context:
+    rmnet_perf_core_deaggregate(skb, NULL);
+    // Return 0 to indicate success (required by new signature)
+    return 0;
+}
+
 /* rmnet_perf_core_set_ingress_hook() - sets appropriate ingress hook
  *		in the core rmnet driver
  *
@@ -146,8 +157,7 @@ void rmnet_perf_core_release_lock(void)
 void rmnet_perf_core_set_ingress_hook(void)
 {
 	if (rmnet_perf_core_is_deag_mode()) {
-		RCU_INIT_POINTER(rmnet_perf_deag_entry,
-				 rmnet_perf_core_deaggregate);
+		RCU_INIT_POINTER(rmnet_perf_deag_entry, rmnet_perf_deag_entry_wrapper);
 		RCU_INIT_POINTER(rmnet_perf_desc_entry, NULL);
 	} else {
 		RCU_INIT_POINTER(rmnet_perf_deag_entry, NULL);

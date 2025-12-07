@@ -71,7 +71,14 @@ void __exit rmnet_shs_module_exit(void)
 
 	pr_info("%s(): Exiting rmnet SHS module\n", __func__);
 }
-
+/* Match the required 'int' return type */
+static int rmnet_shs_skb_entry_wrapper(struct sk_buff *skb, struct rmnet_port *port)
+{
+    // Call the original, void-returning function
+    rmnet_shs_assign(skb, port);
+    // Return 0 to indicate success (required by new signature)
+    return 0;
+}
 static int rmnet_shs_dev_notify_cb(struct notifier_block *nb,
 				    unsigned long event, void *data)
 {
@@ -182,8 +189,7 @@ static int rmnet_shs_dev_notify_cb(struct notifier_block *nb,
 					     RMNET_SHS_MODULE_INIT_WQ,
 					     0xDEF, 0xDEF, 0xDEF,
 					     0xDEF, NULL, NULL);
-			RCU_INIT_POINTER(rmnet_shs_skb_entry,
-					 rmnet_shs_assign);
+			RCU_INIT_POINTER(rmnet_shs_skb_entry, rmnet_shs_skb_entry_wrapper);
 		}
 
 		break;
