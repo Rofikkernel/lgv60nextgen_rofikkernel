@@ -5,7 +5,33 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+
+    env:
+      ARCH: arm64
+      SUBARCH: arm64
+
+      DEFCONFIG: vendor/kona-perf_defconfig
+      CUSTOM_CONFIG: vendor/rofikkernel.config
+
+      KERNEL_NAME: rofikkernel
+      DEVICE_NAME: timelm
+
+      OUT_DIR: out
+
+      CLANG_PATH: ${{ github.workspace }}/toolchain/bin
+
+      CROSS_COMPILE: aarch64-linux-gnu-
+      CROSS_COMPILE_ARM32: arm-linux-gnueabi-
+
+      BOOT_HEADER_VERSION: 2
+      BASE: 0x00000000
+      PAGESIZE: 4096
+      TAGS_OFFSET: 0x00000100
+      KERNEL_OFFSET: 0x00008000
+      RAMDISK_OFFSET: 0x01000000
+      DTB_OFFSET: 0x01f00000
+
     steps:
       - name: Checkout Source
         uses: actions/checkout@v4
@@ -14,60 +40,145 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y bc bison build-essential flex git libssl-dev \
-          libncurses5-dev zip python3 gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
+          sudo apt update
 
-      - name: Fetch Toolchain
-        run: |
-          git clone --depth=1 https://github.com/kdrag0n/proton-clang.git toolchain
+          sudo apt install -y \
+            bc \
+            bison \
+            build-essential \
+            cpio \
+            curl \
+            flex \
+            git \
+            kmod \
+            libelf-dev \
+            libssl-dev \
+            lld \
+            llvm \
+            python3 \
+            unzip \
+            zip \
+            gcc-aarch64-linux-gnu \
+            gcc-arm-linux-gnueabi \
+            device-tree-compiler
 
-      - name: Detect Kernel Version
-        id: info
+      - name: Clone Proton Clang
         run: |
-          V=$(grep "^VERSION =" Makefile | awk '{print $3}')
-          P=$(grep "^PATCHLEVEL =" Makefile | awk '{print $3}')
-          S=$(grep "^SUBLEVEL =" Makefile | awk '{print $3}')
-          echo "KVER=$V.$P.$S" >> $GITHUB_OUTPUT
+          git clone --depth=1 \
+            https://github.com/kdrag0n/proton-clang.git \
+            toolchain
+
+      - name: Clone mkbootimg tools
+        run: |
+          git clone --depth=1 \
+            https://github.com/osm0sis/mkbootimg.git \
+            mkbootimg
+
+      - name: Kernel Version
+        id: kernel
+        run: |
+          VERSION=$(make kernelversion)
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Setup PATH
+        run: |
+          echo "${{ env.CLANG_PATH }}" >> $GITHUB_PATH
+
+      - name: Prepare Config
+        run: |
+          make O=${OUT_DIR} \
+            ARCH=arm64 \
+            ${DEFCONFIG}
+
+          scripts/kconfig/merge_config.sh \
+            -m \
+            -O ${OUT_DIR} \
+            arch/arm64/configs/${DEFCONFIG} \
+            arch/arm64/configs/${CUSTOM_CONFIG}
 
       - name: Build Kernel
-        env:
-          PATH: /usr/bin:${{ github.workspace }}/toolchain/bin:/bin
         run: |
-          # 1. Configuration
-          DEFCONFIG="vendor/kona-perf_defconfig"
-          CUSTOM_NAME="-rofikkerneltest" 
-          
-          export ARCH=arm64
-          export CROSS_COMPILE=aarch64-linux-gnu-
-          export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
-          
-          # 2. Initialize Config
-          make O=out $DEFCONFIG
-          
-          # 3. Compile Kernel and DTBs
-          # Note: We added 'dtbs' to the targets
-          make -j$(nproc --all) O=out \
-               ARCH=arm64 \
-               CC=clang \
-               LD=ld.lld \
-               AR=llvm-ar \
-               NM=llvm-nm \
-               OBJCOPY=llvm-objcopy \
-               OBJDUMP=llvm-objdump \
-               STRIP=llvm-strip \
-               CROSS_COMPILE=$CROSS_COMPILE \
-               CROSS_COMPILE_ARM32=$CROSS_COMPILE_ARM32 \
-               LOCALVERSION=$CUSTOM_NAME \
-               Image.gz dtbs
+          make -j$(nproc --all) \
+            O=${OUT_DIR} \
+            ARCH=arm64 \
+            CC=clang \
+            LLVM=1 \
+            LLVM_IAS=1 \
+            LD=ld.lld \
+            AR=llvm-ar \
+            NM=llvm-nm \
+            OBJCOPY=llvm-objcopy \
+            OBJDUMP=llvm-objdump \
+            STRIP=llvm-strip \
+            CROSS_COMPILE=${CROSS_COMPILE} \
+            CROSS_COMPILE_ARM32=${CROSS_COMPILE_ARM32} \
+            LOCALVERSION=-${KERNEL_NAME} \
+            Image.gz \
+            dtbs
 
-          # 4. Create Image.gz-dtb
-          # This joins the Image.gz and all generated DTBs into one file
-          cat out/arch/arm64/boot/Image.gz $(find out/arch/arm64/boot/dts/vendor -name "*.dtb") > out/arch/arm64/boot/Image.gz-dtb
+      - name: Create DTB Image
+        run: |
+          mkdir -p artifacts
 
-      - name: Upload Kernel Image
+          DTB_FILES=$(find ${OUT_DIR}/arch/arm64/boot/dts/ -name "*.dtb" | sort)
+
+          cat $DTB_FILES > artifacts/dtb.img
+
+      - name: Build DTBO Image
+        run: |
+          if [ -d "${OUT_DIR}/arch/arm64/boot/dts/vendor/qcom" ]; then
+
+            python3 scripts/dtc/dt_to_config \
+              ${OUT_DIR}/arch/arm64/boot/dts/vendor/qcom/*.dtbo \
+              >/dev/null 2>&1 || true
+
+            mkdtimg create artifacts/dtbo.img \
+              $(find ${OUT_DIR} -name "*.dtbo" | sort)
+
+          else
+            echo "No DTBO files found"
+          fi
+
+      - name: Prepare Ramdisk
+        run: |
+          mkdir ramdisk
+          cd ramdisk
+
+          find . | cpio -H newc -ov --owner root:root > ../artifacts/ramdisk.cpio
+
+          cd ..
+
+          gzip -f artifacts/ramdisk.cpio
+
+      - name: Create Boot Image
+        run: |
+          python3 mkbootimg/mkbootimg.py \
+            --kernel ${OUT_DIR}/arch/arm64/boot/Image.gz \
+            --ramdisk artifacts/ramdisk.cpio.gz \
+            --dtb artifacts/dtb.img \
+            --header_version ${BOOT_HEADER_VERSION} \
+            --base ${BASE} \
+            --pagesize ${PAGESIZE} \
+            --kernel_offset ${KERNEL_OFFSET} \
+            --ramdisk_offset ${RAMDISK_OFFSET} \
+            --tags_offset ${TAGS_OFFSET} \
+            --dtb_offset ${DTB_OFFSET} \
+            --output artifacts/boot.img
+
+      - name: Generate SHA256
+        run: |
+          cd artifacts
+          sha256sum * > SHA256SUMS.txt
+
+      - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Kernel-v${{ steps.info.outputs.KVER }}-Custom
-          path: out/arch/arm64/boot/Image.gz-dtb
-          
+          name: |
+            ${{ env.KERNEL_NAME }}-${{ env.DEVICE_NAME }}-${{ steps.kernel.outputs.version }}
+          path: |
+            artifacts/boot.img
+            artifacts/dtb.img
+            artifacts/dtbo.img
+            artifacts/SHA256SUMS.txt
+            out/arch/arm64/boot/Image.gz
