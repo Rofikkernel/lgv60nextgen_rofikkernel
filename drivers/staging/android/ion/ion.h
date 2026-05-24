@@ -66,6 +66,25 @@
 #define ION_POOL_LOW_MARK 0UL
 #endif
 
+static inline enum ion_heap_type msm_to_ion_heap(enum msm_ion_heap_types type)
+{
+    switch (type) {
+    case ION_HEAP_TYPE_SECURE_DMA:
+        return (enum ion_heap_type)ION_HEAP_TYPE_SECURE_DMA;
+
+    case ION_HEAP_TYPE_SYSTEM_SECURE:
+        return (enum ion_heap_type)ION_HEAP_TYPE_SYSTEM_SECURE;
+
+    case ION_HEAP_TYPE_HYP_CMA:
+        return (enum ion_heap_type)ION_HEAP_TYPE_HYP_CMA;
+
+    case ION_HEAP_TYPE_SECURE_CARVEOUT:
+        return (enum ion_heap_type)ION_HEAP_TYPE_SECURE_CARVEOUT;
+
+    default:
+        return (enum ion_heap_type)type;
+    }
+}
 /* if low watermark of zones have reached, defer the refill in this window */
 #define ION_POOL_REFILL_DEFER_WINDOW_MS	10
 

@@ -578,7 +578,7 @@ static ssize_t dual_role_store_property(struct device *dev,
 		value = result;
 		if (!ret)
 			goto setprop;
-		else
+		
 			ret = -EINVAL;
 			goto error;
 		break;

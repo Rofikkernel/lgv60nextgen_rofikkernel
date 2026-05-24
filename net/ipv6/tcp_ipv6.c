@@ -885,7 +885,7 @@ struct request_sock_ops tcp6_request_sock_ops __read_mostly = {
 #ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 const struct tcp_request_sock_ops tcp_request_sock_ipv6_ops = {
 #else
-static const struct tcp_request_sock_ops tcp_request_sock_ipv6_ops = {
+const struct tcp_request_sock_ops tcp_request_sock_ipv6_ops = {
 #endif
 	.mss_clamp	=	IPV6_MIN_MTU - sizeof(struct tcphdr) -
 				sizeof(struct ipv6hdr),

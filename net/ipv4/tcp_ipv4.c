@@ -1541,7 +1541,7 @@ struct request_sock_ops tcp_request_sock_ops __read_mostly = {
 #ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 const struct tcp_request_sock_ops tcp_request_sock_ipv4_ops = {
 #else
-static const struct tcp_request_sock_ops tcp_request_sock_ipv4_ops = {
+const struct tcp_request_sock_ops tcp_request_sock_ipv4_ops = {
 #endif
 	.mss_clamp	=	TCP_MSS_DEFAULT,
 #ifdef CONFIG_TCP_MD5SIG
