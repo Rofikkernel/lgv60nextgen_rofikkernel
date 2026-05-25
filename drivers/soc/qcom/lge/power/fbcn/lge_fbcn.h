@@ -14,7 +14,7 @@
 #ifndef LGE_FBCN_H
 #define LGE_FBCN_H
 
-#include "main/lge_prm.h"
+#include "../main/lge_prm.h"
 
 struct fbcn_intv_stats {
 	u64 intv;

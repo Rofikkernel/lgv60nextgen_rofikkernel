@@ -269,13 +269,7 @@ static struct sock *tcp_fastopen_create_child(struct sock *sk,
 #ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 #else
 	/* Now finish processing the fastopen child socket. */
-<<<<<<< HEAD
-	tcp_init_transfer(child, BPF_SOCK_OPS_PASSIVE_ESTABLISHED_CB);
-#endif
-=======
 	tcp_init_transfer(child, BPF_SOCK_OPS_PASSIVE_ESTABLISHED_CB, skb);
->>>>>>> qcom/new
-
 	tp->rcv_nxt = TCP_SKB_CB(skb)->seq + 1;
 
 	tcp_fastopen_add_skb(child, skb);
@@ -295,7 +289,7 @@ static struct sock *tcp_fastopen_create_child(struct sock *sk,
 	}
 
 	/* Now finish processing the fastopen child socket. */
-	tcp_init_transfer(child, BPF_SOCK_OPS_PASSIVE_ESTABLISHED_CB);
+	tcp_init_transfer(child, BPF_SOCK_OPS_PASSIVE_ESTABLISHED_CB, skb);
 #endif
 
 	/* tcp_conn_request() is sending the SYNACK,

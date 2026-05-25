@@ -61,7 +61,7 @@ do {								\
 #include <linux/power_supply.h>
 #include "qcom/smb5-lib.h"
 #ifdef CONFIG_LGE_PM_PRM
-#include "../../soc/qcom/lge/power/main/lge_prm.h"
+#include "../main/lge_prm.h"
 #endif
 #ifdef CONFIG_LGE_PM_VENEER_PSY
 #include "lge/veneer-primitives.h"
