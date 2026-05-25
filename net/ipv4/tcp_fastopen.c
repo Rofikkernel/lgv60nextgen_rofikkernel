@@ -248,7 +248,7 @@ static struct sock *tcp_fastopen_create_child(struct sock *sk,
 	 */
 	tp = tcp_sk(child);
 
-	tp->fastopen_rsk = req;
+	rcu_assign_pointer(tp->fastopen_rsk, req);
 	tcp_rsk(req)->tfo_listener = true;
 
 	/* RFC1323: The window in SYN & SYN/ACK segments is never
@@ -269,8 +269,12 @@ static struct sock *tcp_fastopen_create_child(struct sock *sk,
 #ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 #else
 	/* Now finish processing the fastopen child socket. */
+<<<<<<< HEAD
 	tcp_init_transfer(child, BPF_SOCK_OPS_PASSIVE_ESTABLISHED_CB);
 #endif
+=======
+	tcp_init_transfer(child, BPF_SOCK_OPS_PASSIVE_ESTABLISHED_CB, skb);
+>>>>>>> qcom/new
 
 	tp->rcv_nxt = TCP_SKB_CB(skb)->seq + 1;
 

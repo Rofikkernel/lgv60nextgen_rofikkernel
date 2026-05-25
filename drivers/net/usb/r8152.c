@@ -1908,9 +1908,10 @@ static int r8152_tx_agg_sg_fill(struct r8152 *tp, struct tx_agg *agg)
 	agg->urb->sg = agg->head;
 	agg->urb->num_sgs = sg_num;
 	ret = usb_submit_urb(agg->urb, GFP_ATOMIC);
-	if (ret < 0)
+	if (ret < 0){
 		usb_autopm_put_interface_async(tp->intf);
 out_tx_fill:
+	}
 	return ret;
 }
 static u8 r8152_rx_csum(struct r8152 *tp, struct rx_desc *rx_desc)
