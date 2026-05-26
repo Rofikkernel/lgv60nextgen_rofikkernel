@@ -16,7 +16,7 @@
 
 #include <linux/err.h>
 
-#include "main/lge_prm.h"
+#include "lge_prm.h"
 
 #if defined(CONFIG_LGE_DUAL_SCREEN)
 void lge_prm_dd2_state_callback(bool enable);

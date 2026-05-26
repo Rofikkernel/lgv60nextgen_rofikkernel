@@ -77,11 +77,6 @@
 #include <linux/tcp_input_mptcp_back.h>
 #include <asm/unaligned.h>
 #include <linux/errqueue.h>
-#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
-#include <net/mptcp.h>
-#include <net/mptcp_v4.h>
-#include <net/mptcp_v6.h>
-#endif
 #include <trace/events/tcp.h>
 #include <linux/jump_label_ratelimit.h>
 #include <net/busy_poll.h>
@@ -475,7 +470,7 @@ static void tcp_sndbuf_expand(struct sock *sk)
 			   min(sndmem,
 			       sock_net(sk)->ipv4.sysctl_tcp_wmem[2]));
 #endif
-
+}
 /* 2. Tuning advertised window (window_clamp, rcv_ssthresh)
  *
  * All tcp_full_space() is split to two parts: "network" buffer, allocated
@@ -7203,15 +7198,7 @@ int tcp_conn_request(struct request_sock_ops *rsk_ops,
 
 	syncookies = READ_ONCE(net->ipv4.sysctl_tcp_syncookies);
 
-#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
-	/* TW buckets are converted to open requests without
-	 * limitations, they conserve resources and peer is
-	 * evidently real one.
-	 *
-	 * MPTCP: new subflows cannot be established in a stateless manner.
-	 */
-	if (((!is_meta_sk(sk) && net->ipv4.sysctl_tcp_syncookies == 2) ||
-#else
+
 	/* TW buckets are converted to open requests without
 	 * limitations, they conserve resources and peer is
 	 * evidently real one.
@@ -7220,11 +7207,6 @@ int tcp_conn_request(struct request_sock_ops *rsk_ops,
 		want_cookie = tcp_syn_flood_action(sk, rsk_ops->slab_name);
 		if (!want_cookie)
 			goto drop;
-#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
-
-		if (is_meta_sk(sk))
-			goto drop;
-#endif
 	}
 
 	if (sk_acceptq_is_full(sk)) {
@@ -7242,13 +7224,8 @@ int tcp_conn_request(struct request_sock_ops *rsk_ops,
 	tcp_clear_options(&tmp_opt);
 	tmp_opt.mss_clamp = af_ops->mss_clamp;
 	tmp_opt.user_mss  = tp->rx_opt.user_mss;
-#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
-	tcp_parse_options(sock_net(sk), skb, &tmp_opt, NULL, 0,
-			  want_cookie ? NULL : &foc, NULL);
-#else
 	tcp_parse_options(sock_net(sk), skb, &tmp_opt, 0,
 			  want_cookie ? NULL : &foc);
-#endif
 
 	if (want_cookie && !tmp_opt.saw_tstamp)
 		tcp_clear_options(&tmp_opt);
@@ -7263,12 +7240,9 @@ int tcp_conn_request(struct request_sock_ops *rsk_ops,
 	/* Note: tcp_v6_init_req() might override ir_iif for link locals */
 	inet_rsk(req)->ir_iif = inet_request_bound_dev_if(sk, skb);
 
-#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
-	if (af_ops->init_req(req, sk, skb, want_cookie))
-		goto drop_and_free;
-#else
+
 	af_ops->init_req(req, sk, skb);
-#endif
+
 
 	if (security_inet_conn_request(sk, skb, req))
 		goto drop_and_free;
@@ -7304,11 +7278,7 @@ int tcp_conn_request(struct request_sock_ops *rsk_ops,
 	tcp_ecn_create_request(req, skb, sk, dst);
 
 	if (want_cookie) {
-#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
-		isn = cookie_init_sequence(af_ops, req, sk, skb, &req->mss);
-#else
 		isn = cookie_init_sequence(af_ops, sk, skb, &req->mss);
-#endif
 		req->cookie_ts = tmp_opt.tstamp_ok;
 		if (!tmp_opt.tstamp_ok)
 			inet_rsk(req)->ecn_ok = 0;
@@ -7323,36 +7293,17 @@ int tcp_conn_request(struct request_sock_ops *rsk_ops,
 		fastopen_sk = tcp_try_fastopen(sk, skb, req, &foc, dst);
 	}
 	if (fastopen_sk) {
-#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
-		struct sock *meta_sk = fastopen_sk;
-
-		if (mptcp(tcp_sk(fastopen_sk)))
-			meta_sk = mptcp_meta_sk(fastopen_sk);
-#endif
 		af_ops->send_synack(fastopen_sk, dst, &fl, req,
 				    &foc, TCP_SYNACK_FASTOPEN, skb);
 		/* Add the child socket directly into the accept queue */
-#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
-		if (!inet_csk_reqsk_queue_add(sk, req, meta_sk)) {
-#else
 		if (!inet_csk_reqsk_queue_add(sk, req, fastopen_sk)) {
-#endif
-			reqsk_fastopen_remove(fastopen_sk, req, false);
 			bh_unlock_sock(fastopen_sk);
-#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
-			if (meta_sk != fastopen_sk)
-				bh_unlock_sock(meta_sk);
-#endif
 			sock_put(fastopen_sk);
 			reqsk_put(req);
 			goto drop;
 		}
 		sk->sk_data_ready(sk);
 		bh_unlock_sock(fastopen_sk);
-#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
-		if (meta_sk != fastopen_sk)
-			bh_unlock_sock(meta_sk);
-#endif
 		sock_put(fastopen_sk);
 	} else {
 		tcp_rsk(req)->tfo_listener = false;

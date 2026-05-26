@@ -1044,8 +1044,8 @@ static int hidg_bind(struct usb_configuration *c, struct usb_function *f)
 		hidg_charge_interface_desc.bInterfaceNumber =
 			hidg_interface_desc.bInterfaceNumber;
 
-		hidg_desc.desc[0].bDescriptorType = HID_DT_REPORT;
-		hidg_desc.desc[0].wDescriptorLength =
+		hidg_desc.rpt_desc.bDescriptorType = HID_DT_REPORT;
+		hidg_desc.rpt_desc.wDescriptorLength =
 			cpu_to_le16(hidg->report_desc_length);
 
 		status = usb_assign_descriptors(f,

@@ -16,7 +16,7 @@
 
 #include <linux/err.h>
 
-#include "main/lge_prm.h"
+#include "lge_prm.h"
 
 void lge_sben_notify(void);
 

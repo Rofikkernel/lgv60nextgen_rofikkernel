@@ -2,7 +2,7 @@
 
 # Makefile for external connector class (extcon) devices
 #
-
+ccflags-$(CONFIG_LGE_PM_PRM) += -I$(srctree)/drivers/soc/qcom/lge/power
 obj-$(CONFIG_EXTCON)		+= extcon-core.o
 extcon-core-objs		+= extcon.o devres.o
 obj-$(CONFIG_EXTCON_ADC_JACK)	+= extcon-adc-jack.o

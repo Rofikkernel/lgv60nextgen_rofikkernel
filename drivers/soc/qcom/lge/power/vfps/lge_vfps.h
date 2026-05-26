@@ -15,7 +15,7 @@
 #define _LGE_VFPS_H_
 
 #include <linux/err.h>
-#include "../main/lge_prm.h"
+#include "lge_prm.h"
 #include "sde/sde_crtc.h"
 
 bool lge_vfps_check_internal(void);

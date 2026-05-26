@@ -35,7 +35,7 @@
 #include "extcon.h"
 
 #ifdef CONFIG_LGE_PM_PRM
-#include "../main/lge_prm.h"
+#include "main/lge_prm.h"
 #endif
 
 #define SUPPORTED_CABLE_MAX	32

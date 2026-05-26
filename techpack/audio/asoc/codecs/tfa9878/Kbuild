@@ -6,6 +6,7 @@ else
 	KERNEL_BUILD := 0
 endif
 
+
 TFA_DEBUG                =1
 TFADSP_DEBUG             =1
 TFA_VERSION              =tfa9878
@@ -72,7 +73,7 @@ COMMON_INC :=	-I$(AUDIO_ROOT)/$(COMMON_DIR)
 ifdef CONFIG_ARCH_LITO
 TFA9878_INC :=  -I$(TFA_SRC_DIR)/tfa9878_lito/inc
 else
-TFA9878_INC :=  -Itechpack/audio/asoc/codecs/tfa9878/inc
+TFA9878_INC := -I$(srctree)/techpack/audio/asoc/codecs/tfa9878/inc
 endif
 ############ MSM Soundwire ############
 

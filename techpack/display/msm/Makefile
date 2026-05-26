@@ -1,8 +1,21 @@
-# SPDX-License-Identifier: GPL-2.0
-ccflags-y := -I$(srctree)/include/drm -I$(srctree)/techpack/display/msm -I$(srctree)/techpack/display/msm/dsi -I$(srctree)/techpack/display/msm/dp
+ccflags-y += -I$(srctree)/include/drm
+ccflags-y += -I$(srctree)/techpack/display/msm
+ccflags-y += -I$(srctree)/techpack/display/msm/dsi
+ccflags-y += -I$(srctree)/techpack/display/msm/dp
 ccflags-y += -I$(srctree)/techpack/display/msm/sde
 ccflags-y += -I$(srctree)/techpack/display/rotator
-ccflags-$(CONFIG_LGE_PM_PRM) += -Idrivers/soc/qcom/lge/power
+
+ccflags-$(CONFIG_LGE_PM_PRM) += -I$(srctree)/drivers/soc/qcom/lge/power
+ccflags-$(CONFIG_LGE_PM_PRM) += -I$(srctree)/drivers/soc/qcom/lge/power/main
+ccflags-$(CONFIG_LGE_PM_PRM) += -I$(srctree)/drivers/soc/qcom/lge/power/vfps
+ccflags-$(CONFIG_LGE_PM_PRM) += -I$(srctree)/drivers/soc/qcom/lge/power/fbcn
+ccflags-$(CONFIG_LGE_PM_PRM) += -I$(srctree)/drivers/soc/qcom/lge/power/sben
+ccflags-$(CONFIG_LGE_PM_PRM) += -I$(srctree)/drivers/soc/qcom/lge/power/triton
+ccflags-$(CONFIG_LGE_PM_PRM) += -I$(srctree)/drivers/soc/qcom/lge/power/dd
+
+
+
+
 
 msm_drm-$(CONFIG_DRM_MSM_DP) += dp/dp_usbpd.o \
 	dp/dp_parser.o \

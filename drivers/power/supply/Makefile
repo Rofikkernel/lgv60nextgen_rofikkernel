@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0
 subdir-ccflags-$(CONFIG_POWER_SUPPLY_DEBUG) := -DDEBUG
+ccflags-$(CONFIG_LGE_PM_PRM) += -I$(srctree)/drivers/soc/qcom/lge/power
+
 
 power_supply-y				:= power_supply_core.o
 power_supply-$(CONFIG_SYSFS)		+= power_supply_sysfs.o

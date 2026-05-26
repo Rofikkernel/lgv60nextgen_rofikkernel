@@ -46,7 +46,7 @@
 #include <linux/kthread.h>
 #include <linux/lib_lge_triton.h>
 
-#include "main/lge_prm.h"
+#include "lge_prm.h"
 
 #define MAX_CPUS_DEFLT                    (8)
 

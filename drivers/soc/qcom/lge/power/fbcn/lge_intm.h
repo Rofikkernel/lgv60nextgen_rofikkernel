@@ -21,7 +21,7 @@
 #include <linux/err.h>
 #include <uapi/drm/sde_drm.h>
 
-#include "../main/lge_prm.h"
+#include "lge_prm.h"
 
 #define MIN_INTV (USEC_PER_SEC/60)
 #define MAX_INTV (USEC_PER_SEC/1)
