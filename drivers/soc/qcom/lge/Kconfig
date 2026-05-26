@@ -86,7 +86,7 @@ config LGE_HANDLE_PANIC_RPMH_TIMEOUT
 
 config LGE_BOOTLOADER_LOG
 	tristate "Support LGE bootloader log"
-	default y
+	default n
 	depends on MACH_LGE
 	help
 	  LGE bootloader log
@@ -125,7 +125,7 @@ config LGE_PM_SMPL_COUNTER
 
 config LGE_DM_VERITY_RECOVERY
 	tristate "Support dm verity corrupt recovery"
-	default y
+	default n
 	depends on MACH_LGE
 	help
 	  Sometimes, dm-bufio has invalid data. If data is corrupted,

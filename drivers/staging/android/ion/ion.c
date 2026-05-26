@@ -95,21 +95,9 @@ static void ion_buffer_add(struct ion_device *dev,
 		}
 	}
 
-#ifdef CONFIG_ION_DEBUGGING_LGE_EXTN_DEBUGFS
-	task = current;
-	get_task_comm(buffer->task_comm, task->group_leader);
-	get_task_comm(buffer->thread_comm, task);
-	buffer->pid = task_pid_nr(task->group_leader);
-	buffer->tid = task_pid_nr(task);
-#endif /* CONFIG_ION_DEBUGGING_LGE_EXTN_DEBUGFS */
-
 	rb_link_node(&buffer->node, parent, p);
 	rb_insert_color(&buffer->node, &dev->buffers);
 }
-
-#ifdef CONFIG_ION_DEBUGGING_LGE_EXTN_DEBUGFS
-static void ion_debug_heap_usage_show(struct ion_heap *heap);
-#endif /* CONFIG_ION_DEBUGGING_LGE_EXTN_DEBUGFS */
 
 /* this function should only be called while dev->lock is held */
 static struct ion_buffer *ion_buffer_create(struct ion_heap *heap,
@@ -1226,104 +1214,10 @@ static const struct file_operations ion_fops = {
 	.compat_ioctl	= compat_ptr_ioctl,
 };
 
-#ifdef CONFIG_ION_DEBUGGING_LGE_EXTN_DEBUGFS
-static void __ion_debug_heap_usage_show(struct ion_heap *heap)
-{
-	struct ion_device *dev = heap->dev;
-	struct rb_node *n;
-	size_t total_size = 0;
-
-	pr_info("ion heap: %s %u\n", heap->name, heap->id);
-	pr_info("%16s %16s %16s %16s %16s\n", "task", "pid", "thread", "tid", "size");
-	mutex_lock(&dev->buffer_lock);
-	for (n = rb_first(&dev->buffers); n; n = rb_next(n)) {
-		struct ion_buffer *buffer = rb_entry(n, struct ion_buffer,
-						     node);
-		if (buffer->heap->id != heap->id)
-			continue;
-		total_size += buffer->size;
-		pr_info("%16s %16u (%16s %16u) %16zu\n", buffer->task_comm,
-			buffer->pid, buffer->thread_comm, buffer->tid,
-			buffer->size);
-	}
-	mutex_unlock(&dev->buffer_lock);
-	pr_info("%16s %16zu\n", "total ", total_size);
-	pr_info("%16.s %16lu\n", "peak allocated",
-		atomic_long_read(&heap->total_allocated_peak));
-}
-
-static void ion_debug_heap_usage_show(struct ion_heap *heap)
-{
-	static DEFINE_RATELIMIT_STATE(show_heap_usage, HZ * 10, 1);
-
-	enum ion_heap_type type = msm_to_ion_heap(heap->type);
-
-	if (type != ION_HEAP_TYPE_CARVEOUT &&
-	    type != ION_HEAP_TYPE_DMA &&
-	    type != ION_HEAP_TYPE_SECURE_DMA &&
-	    type != ION_HEAP_TYPE_HYP_CMA &&
-	    type != ION_HEAP_TYPE_SECURE_CARVEOUT)
-		return;
-
-	if (!__ratelimit(&show_heap_usage))
-		return;
-
-	__ion_debug_heap_usage_show(heap);
-}
-
-static void ion_debug_heap_usage_show_force(struct ion_heap *heap)
-{
-	static DEFINE_RATELIMIT_STATE(show_heap_usage_force, HZ * 10, 1);
-
-	if (!__ratelimit(&show_heap_usage_force))
-		return;
-
-	__ion_debug_heap_usage_show(heap);
-}
-
-void show_ion_system_heap(void)
-{
-	struct ion_heap *heap;
-
-	/* print ion system_heap */
-	heap = get_ion_heap(ION_SYSTEM_HEAP_ID);
-	ion_debug_heap_usage_show_force(heap);
-}
-#endif /* CONFIG_ION_DEBUGGING_LGE_EXTN_DEBUGFS */
 
 static int ion_debug_heap_show(struct seq_file *s, void *unused)
 {
 	struct ion_heap *heap = s->private;
-#ifdef CONFIG_ION_DEBUGGING_LGE_EXTN_DEBUGFS
-	struct ion_device *dev = heap->dev;
-	struct rb_node *n;
-	size_t total_size = 0;
-
-	seq_printf(s, "%16s %16s %16s %16s %16s\n", "client", "pid", "thread", "tid", "size");
-
-	seq_puts(s, "------------------------------------------------------------------------------------\n");
-	mutex_lock(&dev->buffer_lock);
-	for (n = rb_first(&dev->buffers); n; n = rb_next(n)) {
-		struct ion_buffer *buffer = rb_entry(n, struct ion_buffer,
-						     node);
-		if (buffer->heap->id != heap->id)
-			continue;
-		total_size += buffer->size;
-		seq_printf(s, "%16s %16u (%16s %16u) %16zu\n",
-			   buffer->task_comm, buffer->pid,
-			   buffer->thread_comm, buffer->tid,
-			   buffer->size);
-	}
-	mutex_unlock(&dev->buffer_lock);
-	seq_puts(s, "------------------------------------------------------------------------------------\n");
-	seq_printf(s, "%16s %16zu\n", "total ", total_size);
-	seq_printf(s, "%16.s %16lu\n", "peak allocated",
-		   atomic_long_read(&heap->total_allocated_peak));
-	if (heap->flags & ION_HEAP_FLAG_DEFER_FREE)
-		seq_printf(s, "%16s %16zu\n", "deferred free",
-			   heap->free_list_size);
-	seq_puts(s, "------------------------------------------------------------------------------------\n");
-#endif /* CONFIG_ION_DEBUGGING_LGE_EXTN_DEBUGFS */
 
 	if (heap->debug_show)
 		heap->debug_show(heap, s, unused);
@@ -1382,9 +1276,6 @@ void ion_device_add_heap(struct ion_device *dev, struct ion_heap *heap)
 {
 	char debug_name[64], buf[256];
 	int ret;
-#ifdef CONFIG_ION_DEBUGGING_LGE_EXTN_DEBUGFS
-	struct dentry *debug_file;
-#endif /* CONFIG_ION_DEBUGGING_LGE_EXTN_DEBUGFS */
 
 	if (!heap->ops->allocate || !heap->ops->free)
 		pr_err("%s: can not add heap with invalid ops struct.\n",
@@ -1392,9 +1283,6 @@ void ion_device_add_heap(struct ion_device *dev, struct ion_heap *heap)
 
 	spin_lock_init(&heap->free_lock);
 	heap->free_list_size = 0;
-#ifdef CONFIG_MIGRATE_HIGHORDER
-	heap->free_highorder_size = 0;
-#endif
 
 	if (heap->flags & ION_HEAP_FLAG_DEFER_FREE)
 		ion_heap_init_deferred_free(heap);
@@ -1413,20 +1301,6 @@ void ion_device_add_heap(struct ion_device *dev, struct ion_heap *heap)
 	 */
 	plist_node_init(&heap->node, -heap->id);
 	plist_add(&heap->node, &dev->heaps);
-
-	debug_file = debugfs_create_file(heap->name, 0664,
-					 dev->heaps_debug_root, heap,
-					 &debug_heap_fops);
-
-#ifdef CONFIG_ION_DEBUGGING_LGE_EXTN_DEBUGFS
-	if (!debug_file) {
-		char buf[256], *path;
-
-		path = dentry_path(dev->heaps_debug_root, buf, 256);
-		pr_err("Failed to create heap debugfs at %s/%s\n",
-		       path, heap->name);
-	}
-#endif /* CONFIG_ION_DEBUGGING_LGE_EXTN_DEBUGFS */
 
 	if (heap->debug_show) {
 		snprintf(debug_name, 64, "%s_stats", heap->name);
@@ -1501,63 +1375,6 @@ static int ion_init_sysfs(void)
 	return 0;
 }
 
-#ifdef CONFIG_ION_DEBUGGING_PROCFS
-extern int ion_system_heap_debug_show(struct ion_heap *heap, struct seq_file *s, void *unused);
-static int ion_system_heap_show(struct seq_file *s, void *unused)
-{
-	struct ion_device *dev = internal_dev;
-	struct rb_node *n;
-	size_t total_size = 0;
-	struct ion_heap *heap;
-
-	/* find the system heap */
-	plist_for_each_entry(heap, &dev->heaps, node) {
-		if(!strcmp(heap->name, "system")) {
-			dev = heap->dev;
-			break;
-		}
-	}
-
-	seq_printf(s, "%16s %16s %16s %16s %16s\n", "client", "pid", "thread", "tid", "size");
-
-	seq_puts(s, "------------------------------------------------------------------------------------\n");
-	mutex_lock(&dev->buffer_lock);
-	for (n = rb_first(&dev->buffers); n; n = rb_next(n)) {
-		struct ion_buffer *buffer = rb_entry(n, struct ion_buffer, node);
-		if (buffer->heap->id != heap->id)
-			continue;
-		total_size += buffer->size;
-		seq_printf(s, "%16s %16u %16s %16u %16zu\n",
-								buffer->task_comm, buffer->pid,
-								buffer->thread_comm, buffer->tid,
-								buffer->size);
-	}
-	mutex_unlock(&dev->buffer_lock);
-	seq_puts(s, "------------------------------------------------------------------------------------\n");
-	seq_printf(s, "%16s %16llu\n", "total size", heap->total_allocated);
-	seq_printf(s, "%16s %16llu\n", "peak allocated", heap->total_allocated_peak);
-	if (heap->flags & ION_HEAP_FLAG_DEFER_FREE)
-		seq_printf(s, "%16s %16zu\n", "deferred free", heap->free_list_size);
-	seq_puts(s, "------------------------------------------------------------------------------------\n");
-
-	/* system heap stats */
-	ion_system_heap_debug_show(heap, s, unused);
-	return 0;
-}
-
-int ion_system_heap_open(struct inode *inode, struct file *file)
-{
-	return single_open(file, ion_system_heap_show, inode->i_private);
-}
-
-const struct file_operations ion_system_heap_fops = {
-  .owner = THIS_MODULE,
-  .open = ion_system_heap_open,
-  .read = seq_read,
-  .llseek = seq_lseek,
-  .release = single_release,
-};
-#endif
 
 struct ion_device *ion_device_create(void)
 {
@@ -1585,25 +1402,7 @@ struct ion_device *ion_device_create(void)
 	}
 
 	idev->debug_root = debugfs_create_dir("ion", NULL);
-
-#ifdef CONFIG_ION_DEBUGGING_LGE_EXTN_DEBUGFS
-	if (!idev->debug_root) {
-		pr_err("ion: failed to create debugfs root directory.\n");
-		goto debugfs_done;
-	}
-	idev->heaps_debug_root = debugfs_create_dir("heaps", idev->debug_root);
-	if (!idev->heaps_debug_root) {
-		pr_err("ion: failed to create debugfs heaps directory.\n");
-		goto debugfs_done;
-	}
-
-debugfs_done:
-#endif /* CONFIG_ION_DEBUGGING_LGE_EXTN_DEBUGFS */
-
 	idev->buffers = RB_ROOT;
-#ifdef CONFIG_ION_DEBUGGING_PROCFS
-	proc_create("ioninfo", 0444, NULL, &ion_system_heap_fops);
-#endif
 	mutex_init(&idev->buffer_lock);
 	init_rwsem(&idev->lock);
 	plist_head_init(&idev->heaps);

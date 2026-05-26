@@ -82,7 +82,7 @@ static void touch_report_event(struct touch_core_data *ts)
 	u16 release_mask = 0;
 	u16 change_mask = 0;
 	int i;
-	bool hide_lockscreen_coord =
+	bool hide_lockscreen_coord __maybe_unused=
 		((atomic_read(&ts->state.lockscreen) == LOCKSCREEN_LOCK) &&
 		 (ts->role.hide_coordinate));
 

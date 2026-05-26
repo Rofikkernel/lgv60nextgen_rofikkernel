@@ -85,6 +85,7 @@ static inline enum ion_heap_type msm_to_ion_heap(enum msm_ion_heap_types type)
         return (enum ion_heap_type)type;
     }
 }
+
 /* if low watermark of zones have reached, defer the refill in this window */
 #define ION_POOL_REFILL_DEFER_WINDOW_MS	10
 
