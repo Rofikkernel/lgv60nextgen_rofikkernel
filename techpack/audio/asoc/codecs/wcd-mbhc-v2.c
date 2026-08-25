@@ -1722,6 +1722,28 @@ done:
 	return IRQ_HANDLED;
 }
 
+static void wcd_mbhc_pm_resume_work(struct work_struct *work)
+{
+	struct wcd_mbhc *mbhc = container_of(work, struct wcd_mbhc, pm_resume_work);
+
+	msleep(200);
+	pr_info("%s: rechecking jack state after resume\n", __func__);
+	if (wcd_swch_level_remove(mbhc)) {
+		pr_info("%s: switch level is removed, forcing mechanical irq\n", __func__);
+		wcd_mbhc_mech_plug_detect_irq(0, mbhc);
+	}
+}
+
+static int wcd_mbhc_pm_notifier(struct notifier_block *nb, unsigned long event, void *ptr)
+{
+	struct wcd_mbhc *mbhc = container_of(nb, struct wcd_mbhc, pm_nb);
+
+	if (event == PM_POST_SUSPEND) {
+		schedule_work(&mbhc->pm_resume_work);
+	}
+	return NOTIFY_DONE;
+}
+
 static int wcd_mbhc_initialise(struct wcd_mbhc *mbhc)
 {
 	int ret = 0;
@@ -2426,6 +2448,9 @@ int wcd_mbhc_init(struct wcd_mbhc *mbhc, struct snd_soc_component *component,
 	}
 
 	mbhc->deinit_in_progress = false;
+	INIT_WORK(&mbhc->pm_resume_work, wcd_mbhc_pm_resume_work);
+	mbhc->pm_nb.notifier_call = wcd_mbhc_pm_notifier;
+	register_pm_notifier(&mbhc->pm_nb);
 	pr_debug("%s: leave ret %d\n", __func__, ret);
 	return ret;
 
@@ -2458,6 +2483,8 @@ EXPORT_SYMBOL(wcd_mbhc_init);
 
 void wcd_mbhc_deinit(struct wcd_mbhc *mbhc)
 {
+	unregister_pm_notifier(&mbhc->pm_nb);
+	cancel_work_sync(&mbhc->pm_resume_work);
 	struct snd_soc_component *component = mbhc->component;
 
 #if defined(CONFIG_SND_LGE_VOC_MUTE_DET)

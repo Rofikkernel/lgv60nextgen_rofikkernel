@@ -541,6 +541,8 @@ struct wcd_mbhc_fn {
 };
 
 struct wcd_mbhc {
+	struct notifier_block pm_nb;
+	struct work_struct pm_resume_work;
 	/* Delayed work to report long button press */
 	struct delayed_work mbhc_btn_dwork;
 	int buttons_pressed;

@@ -1373,7 +1373,11 @@ static irqreturn_t wcd_mbhc_adc_hs_rem_irq(int irq, void *data)
 		WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_BTN_ISRC_CTL, 0);
 		mbhc->btn_press_intr = false;
 		mbhc->is_btn_press = false;
-		if (mbhc->current_plug == MBHC_PLUG_TYPE_HEADSET)
+		if (mbhc->mbhc_cb->mbhc_moisture_polling_ctrl)
+			mbhc->mbhc_cb->mbhc_moisture_polling_ctrl(mbhc, false);
+		if (mbhc->mbhc_cb->mbhc_moisture_detect_en)
+			mbhc->mbhc_cb->mbhc_moisture_detect_en(mbhc, false);
+		if (mbhc->current_plug == MBHC_PLUG_TYPE_HEADSET || mbhc->current_plug == MBHC_PLUG_TYPE_NONE)
 			wcd_mbhc_report_plug(mbhc, 0, SND_JACK_HEADSET);
 		else if (mbhc->current_plug == MBHC_PLUG_TYPE_HEADPHONE)
 			wcd_mbhc_report_plug(mbhc, 0, SND_JACK_HEADPHONE);
